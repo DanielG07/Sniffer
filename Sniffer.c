@@ -189,7 +189,7 @@ void *analizador(void* argument){
 
 			for(int i = 0; i < 6; i++){
 				des[i] = header->h_dest[i];
-				fprintf("%02X ",des[i]);
+				fprintf(puntero_archivo,"%02X ",des[i]);
 			}
 
 			fprintf(puntero_archivo,"\nFuente: ");

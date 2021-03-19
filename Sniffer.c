@@ -229,7 +229,7 @@ void *analizador(void* argument){
 			}
 
 			int s = src[0] & 0x01;
-			printf(puntero_archivo,"Fuente: ");
+			fprintf(puntero_archivo,"Fuente: ");
 			if(s == 0x01){
 				fprintf(puntero_archivo,"Multicast\n");	
 			}

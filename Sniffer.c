@@ -1,3 +1,4 @@
+// Sniffer, donde vamos a analizar el datagrama ip.
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -131,9 +132,9 @@ void *capturador(void* argument){
 	printf("Capturador\n");
 	while(i < capturas){
 		sem_wait(&sincronizador);
-		
+
 		n = recvfrom(s, (char*)buffer, MAXIM, 0, NULL, NULL);
-		
+
 		/*for (int i = 0; i < n; i+=16)
 		{
 		//Para visualizar paquetes en consola.
@@ -148,17 +149,17 @@ void *capturador(void* argument){
 			{
 			ch = ( i + j < n ) ? buffer[ i+j ] : ' ';
 			if (( ch < 0x20 )||( ch > 0x7E )) ch = '.';
-			printf( "%c", ch );
+		printf( "%c", ch );
 			}
 		}
-	
+
 		printf( "\n%d bytes read\n-------\n", n );*/
 
-		
+
 		sem_post(&sincronizador);
 		//printf("%d\n",i);
 		sleep(1);
-		
+
 	}
 }
 

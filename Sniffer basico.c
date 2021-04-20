@@ -20,7 +20,8 @@
 char buffer[MAXIM];
 int num;
 int capturas = 0;
-char red[MAXLINE];
+char red[MAXILINE];
+
 struct ethhdr *header;
 int ipv4=0, ipv6=0, arm=0, cdf=0, mac=0, ethernet=0, ieee=0;
 

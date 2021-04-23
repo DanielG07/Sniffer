@@ -166,8 +166,8 @@ void *analizador(void* argument){
 		
 		if(ntohs(header->h_proto) == 0x0800){
 			fprintf(puntero_archivo, "Paquete #%d\n", ++num );
-			fprintf(puntero_archivo,"Fuente: %02x.%02x.%02x.%02x\n",(unsigned char)buffer[26], (unsigned char)buffer[27], (unsigned char)buffer[28], (unsigned char)buffer[29]);
-			fprintf(puntero_archivo,"Destino: %02x.%02x.%02x.%02x\n",(unsigned char)buffer[30], (unsigned char)buffer[31], (unsigned char)buffer[32], (unsigned char)buffer[33]);
+			fprintf(puntero_archivo,"Fuente: %d.%d.%d.%d\n",(unsigned char)buffer[26], (unsigned char)buffer[27], (unsigned char)buffer[28], (unsigned char)buffer[29]);
+			fprintf(puntero_archivo,"Destino: %d.%d.%d.%d\n",(unsigned char)buffer[30], (unsigned char)buffer[31], (unsigned char)buffer[32], (unsigned char)buffer[33]);
 			fprintf(puntero_archivo,"Header length %d bytes\n",((unsigned int)(headerIP->ihl))*4);
 			fprintf(puntero_archivo,"Total length %d bytes\n",ntohs(headerIP->tot_len));
 			fprintf(puntero_archivo,"Identification: 0x%02X%02x\n",(unsigned char)buffer[18],(unsigned char)buffer[19]);

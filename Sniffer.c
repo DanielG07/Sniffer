@@ -10,6 +10,7 @@
 
 #include <arpa/inet.h> 
 #include <netinet/in.h>
+#include <netinet/ip.h>
 #include <net/if.h>
 #include <linux/if_ether.h>
  
@@ -17,7 +18,7 @@
 #include <sys/socket.h> 
 #include <sys/ioctl.h>
 
-#define MAXIM 1524
+#define MAXIM 65536
 #define MAXLINE 1024
 
 //Funciones
@@ -32,13 +33,15 @@ char red[MAXLINE];
 sem_t sincronizador;
 
 //Socket
+struct iphdr *headerIP;
 struct ethhdr *header;
 char buffer[MAXIM];
-char buffer1[MAXIM];
+struct sockaddr_in source,dest;
 
 //Datos a guardar
 int num = 0, n;
-int ipv4=0, ipv6=0, arm=0, cdf=0, mac=0, ethernet=0, ieee=0;
+int ICMv4 = 0, IGMP = 0, IPv4 = 0, TCP = 0, UDP = 0, IPv6 = 0, OSPF = 0;
+int tam159 = 0, tam639 = 0, tam1279 = 0, tam5119 = 0, mayor = 0;
 
 //Utiles
 int i = 0;
@@ -85,24 +88,31 @@ int main(){
 	
 	//rewind(puntero_archivo);
 
-	fprintf(puntero_archivo,"Total analizado: %d\n",ethernet + ieee);
-	fprintf(puntero_archivo,"Ethernet II: %d\n",ethernet);
-	fprintf(puntero_archivo,"IEEE 802.3: %d\n",ieee);
+	fprintf(puntero_archivo, "-------------------\n");
+	fprintf(puntero_archivo,"ICMv4: %d\n",ICMv4);
+	fprintf(puntero_archivo,"IGMP: %d\n",IGMP);
+	fprintf(puntero_archivo,"IP: %d\n",IPv4);
+	fprintf(puntero_archivo,"TCP: %d\n",TCP);
+	fprintf(puntero_archivo,"UDP: %d\n",UDP);
+	fprintf(puntero_archivo,"IPv6: %d\n",IPv6);
+	fprintf(puntero_archivo,"OSPF: %d\n",OSPF);
 
 	fprintf(puntero_archivo, "-------------------\n");
-
-	fprintf(puntero_archivo,"IPv4: %d\n",ipv4);
-	fprintf(puntero_archivo,"IPv6: %d\n",ipv6);
-	fprintf(puntero_archivo,"ARM: %d\n",arm);
-	fprintf(puntero_archivo,"CDF: %d\n",cdf);
-	fprintf(puntero_archivo,"MAC: %d\n",mac);
+	fprintf(puntero_archivo,"Numero de paquetes:\n");
+	fprintf(puntero_archivo,"0-159: %d\n",tam159);
+	fprintf(puntero_archivo,"160-639: %d\n",tam639);
+	fprintf(puntero_archivo,"640-1279: %d\n",tam1279);
+	fprintf(puntero_archivo,"1279-5119: %d\n",tam5119);
+	fprintf(puntero_archivo,"5120-mayor: %d\n",mayor);
 
 	
 
 	fclose(puntero_archivo);
 
-
-	system("/sbin/ifconfig enp0s3 -promisc");
+	char fin[50] = "/sbin/ifconfig ";
+	strcat(fin,red);
+	strcat(fin," -promisc");
+	system(fin);
 
 	return 1;
 }
@@ -133,28 +143,7 @@ void *capturador(void* argument){
 	while(i < capturas){
 		sem_wait(&sincronizador);
 
-		n = recvfrom(s, (char*)buffer, MAXIM, 0, NULL, NULL);
-
-		/*for (int i = 0; i < n; i+=16)
-		{
-		//Para visualizar paquetes en consola.
-		printf( "\n%04X: ", i );
-		for (int j = 0; j < 16; j++)
-			{
-			ch = ( i + j < n ) ? buffer[ i+j ] : 0;
-			if ( i + j < n ) printf( "%02X ", ch );
-			else	printf( "   " );
-			}
-		for (int j = 0; j < 16; j++)
-			{
-			ch = ( i + j < n ) ? buffer[ i+j ] : ' ';
-			if (( ch < 0x20 )||( ch > 0x7E )) ch = '.';
-		printf( "%c", ch );
-			}
-		}
-
-		printf( "\n%d bytes read\n-------\n", n );*/
-
+		n = recvfrom(s, (char *)buffer, MAXIM, 0, NULL, NULL);
 
 		sem_post(&sincronizador);
 		//printf("%d\n",i);
@@ -165,82 +154,143 @@ void *capturador(void* argument){
 
 void *analizador(void* argument){
 	
-	header = (struct ethhdr *)buffer;
-	
-	unsigned char des[6], src[6];
-	__be16 proto = ntohs(header->h_proto);
-
+	header = (struct ethhdr *)(buffer);
+	headerIP = (struct iphdr *)(buffer  + sizeof(struct ethhdr));
+	//__be16 proto = ntohs(header->h_proto);
 	
 	sleep(3);
 	printf("Analizador\n");
-	for(i=0; i<capturas; i++){
+	i=0;
+	while(i<capturas){
 		sem_wait(&sincronizador);
 		
-		fprintf(puntero_archivo, "Paquete #%d\n", ++num );
-	
-		if(ntohs(header->h_proto) < 0x05DC && ntohs(header->h_proto) > 0x0000){
-			ieee++;
-			fprintf(puntero_archivo,"IEEE 802.3\n");	
+		if(ntohs(header->h_proto) == 0x0800){
+			fprintf(puntero_archivo, "Paquete #%d\n", ++num );
+			fprintf(puntero_archivo,"Fuente: %02x.%02x.%02x.%02x\n",(unsigned char)buffer[26], (unsigned char)buffer[27], (unsigned char)buffer[28], (unsigned char)buffer[29]);
+			fprintf(puntero_archivo,"Destino: %02x.%02x.%02x.%02x\n",(unsigned char)buffer[30], (unsigned char)buffer[31], (unsigned char)buffer[32], (unsigned char)buffer[33]);
+			fprintf(puntero_archivo,"Header length %d bytes\n",((unsigned int)(headerIP->ihl))*4);
+			fprintf(puntero_archivo,"Total length %d bytes\n",ntohs(headerIP->tot_len));
+			fprintf(puntero_archivo,"Identification: 0x%02X%02x\n",(unsigned char)buffer[18],(unsigned char)buffer[19]);
+			fprintf(puntero_archivo,"TTL: %d\n",(unsigned int)headerIP->ttl);
+			if(headerIP->protocol == 0x01){
+				fprintf(puntero_archivo,"Protocolo: ICMPv4 - 0x%02x\n",headerIP->protocol);
+				ICMv4++;
+			}
+			else if(headerIP->protocol == 0x02){
+				fprintf(puntero_archivo,"Protocolo: IGMP - 0x%02x\n",headerIP->protocol);
+				IGMP++;
+			}
+			else if(headerIP->protocol == 0x04){
+				fprintf(puntero_archivo,"Protocolo: IP - 0x%02x\n",headerIP->protocol);
+				IPv4++;
+			}
+			else if(headerIP->protocol == 0x06){
+				fprintf(puntero_archivo,"Protocolo: TCP - 0x%02x\n",headerIP->protocol);
+				TCP++;
+			}
+			else if(headerIP->protocol == 0x11){
+				fprintf(puntero_archivo,"Protocolo: UDP - 0x%02x\n",headerIP->protocol);
+				UDP++;
+			}
+			else if(headerIP->protocol == 0x29){
+				fprintf(puntero_archivo,"Protocolo: IPv6 - 0x%02x\n",headerIP->protocol);
+				IPv6++;
+			}
+			else if(headerIP->protocol == 0x59){
+				fprintf(puntero_archivo,"Protocolo: OSPF - 0x%02x\n",headerIP->protocol);
+				OSPF++;
+			}
+
+			fprintf(puntero_archivo,"Carga util: %d bytes\n",ntohs(headerIP->tot_len)-((unsigned int)(headerIP->ihl))*4);
+			
+			if(ntohs(headerIP->tot_len)-((unsigned int)(headerIP->ihl))*4 < 160){
+				tam159++;
+			}
+			else if(ntohs(headerIP->tot_len)-((unsigned int)(headerIP->ihl))*4 < 640){
+				tam639++;
+			}
+			else if(ntohs(headerIP->tot_len)-((unsigned int)(headerIP->ihl))*4 < 1280){
+				tam1279++;
+			}
+			else if(ntohs(headerIP->tot_len)-((unsigned int)(headerIP->ihl))*4 < 5120){
+				tam5119++;
+			}
+			else if(ntohs(headerIP->tot_len)-((unsigned int)(headerIP->ihl))*4 >5119){
+				mayor++;
+			}
+
+			int type = (unsigned int)headerIP->tos & 0xE0;
+
+			if(type == 0x00){
+				fprintf(puntero_archivo,"Tipo de servicio: De rutina -");
+			}
+			else if(type == 0x020){
+				fprintf(puntero_archivo,"Tipo de servicio: Prioritario -");
+			}
+			else if(type == 0x40){
+				fprintf(puntero_archivo,"Tipo de servicio: Inmediato -");
+			}
+			else if(type == 0x60){
+				fprintf(puntero_archivo,"Tipo de servicio: Relampago -");
+			}
+			else if(type == 0x80){
+				fprintf(puntero_archivo,"Tipo de servicio: Invalidacion relampago -");
+			}
+			else if(type == 0xA0){
+				fprintf(puntero_archivo,"Tipo de servicio: Critico -");
+			}
+			else if(type == 0xC0){
+				fprintf(puntero_archivo,"Tipo de servicio: Control de interred -");
+			}
+			else if(type == 0xE0){
+				fprintf(puntero_archivo,"Tipo de servicio: Control de red -");
+			}
+			
+			type = (unsigned int)headerIP->tos & 0x1E;
+			if(type == 0x10){
+				fprintf(puntero_archivo," Minimiza el retardo - 0x%02x\n",(unsigned int)headerIP->tos);
+			}
+			else if(type == 0x08){
+				fprintf(puntero_archivo," Maximiza el rendimiento - 0x%02x\n",(unsigned int)headerIP->tos);
+			}
+			else if(type == 0x04){
+				fprintf(puntero_archivo," Maximiza la fiabilidad - 0x%02x\n",(unsigned int)headerIP->tos);
+			}
+			else if(type == 0x02){
+				fprintf(puntero_archivo," Minimiza el coste monetario - 0x%02x\n",(unsigned int)headerIP->tos);
+			}
+			else if(type == 0x00){
+				fprintf(puntero_archivo," Servicio normal - 0x%02x\n",(unsigned int)headerIP->tos);
+			}
+			int isLast = 0;
+			int isFragment = (unsigned int)headerIP->frag_off & 0xE0;
+			if(isFragment == 0x20){
+				fprintf(puntero_archivo,"Si esta fragmentado ");
+				isLast = (unsigned int)buffer[21] & 0xFF;
+				if(isLast > 0x00){
+					fprintf(puntero_archivo,"y es intermedio - 0x%02x%02x\n",(unsigned int)buffer[20],(unsigned int)buffer[21]);
+				}
+				else{
+					fprintf(puntero_archivo,"y es el primero - 0x%02x%02x\n",(unsigned int)buffer[20],(unsigned int)buffer[21]);
+				}		
+			}
+			else{
+				fprintf(puntero_archivo,"No esta fragmentado ");
+				if(isLast > 0x00){
+					fprintf(puntero_archivo,"y es el ultimo - 0x%02x%02x\n",(unsigned int)buffer[20],(unsigned int)buffer[21]);
+				}
+				else{
+					fprintf(puntero_archivo,"y es el unico - 0x%02x%02x\n",(unsigned int)buffer[20],(unsigned int)buffer[21]);
+				}
+				
+			}
+			
+			
+			fprintf(puntero_archivo, "-------------------\n");
+			i++;		
 		}
-		else if(ntohs(header->h_proto) >= 0x05DC){
-			ethernet++;
-			fprintf(puntero_archivo,"Ethernet II\n");
 
-			fprintf(puntero_archivo,"Destino: ");
-
-			for(int i = 0; i < 6; i++){
-				des[i] = header->h_dest[i];
-				fprintf(puntero_archivo,"%02X ",des[i]);
-			}
-
-			fprintf(puntero_archivo,"\nFuente: ");
-			for(int i = 0; i < 6; i++){
-				src[i] = header->h_source[i];
-				fprintf(puntero_archivo,"%02X ",src[i]);
-			}
-
-			fprintf(puntero_archivo, "\nLongitud de trama: %d bytes\n", n);
-
-			fprintf(puntero_archivo, "Longitud carga util: %d bytes\n", n-14);
-
-			fprintf(puntero_archivo,"Proto: %04X",ntohs(header->h_proto));
-			if(ntohs(header->h_proto) == 0x0800){
-				ipv4++;	
-			}
-			else if(ntohs(header->h_proto) == 0x86dd){
-				ipv6++;
-			}
-			else if(ntohs(header->h_proto) == 0x0806){
-				arm++;
-			}
-			else if(ntohs(header->h_proto) == 0x8808){
-				cdf++;
-			}
-			else if(ntohs(header->h_proto) == 0x88E5){
-				mac++;
-			}
-
-			int d = des[0] & 0x01;
-			fprintf(puntero_archivo,"\nDestino: ");
-			if(d == 0x01){
-				fprintf(puntero_archivo,"Multicast\n");	
-			}
-			else if(d == 0x00){
-				fprintf(puntero_archivo,"Unicast\n");
-			}
-
-			int s = src[0] & 0x01;
-			fprintf(puntero_archivo,"Fuente: ");
-			if(s == 0x01){
-				fprintf(puntero_archivo,"Multicast\n");	
-			}
-			else if(s == 0x00){
-				fprintf(puntero_archivo,"Unicast\n");
-			}
-
-		} 
-
-		fprintf(puntero_archivo, "-------------------\n");
+		
 		sem_post(&sincronizador);
 
 		sleep(3);
